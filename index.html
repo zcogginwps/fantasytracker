@@ -83,6 +83,9 @@
   var start = Date.now();
   var done = false;
   var statusEl = document.getElementById("status");
+  // ?demo just shows this screen without waking or forwarding to the app, so it
+  // can be viewed on demand even when the server is already awake.
+  var DEMO = new URLSearchParams(location.search).has("demo");
 
   function go() {
     if (done) return;
@@ -112,9 +115,11 @@
   setTimeout(function () { if (!done) statusEl.textContent = "Still warming up…"; }, 20000);
   setTimeout(function () { if (!done) statusEl.textContent = "Almost there…"; }, 45000);
 
-  tick();
-  // Hard backstop in case every ping is swallowed: never strand the visitor.
-  setTimeout(go, MAX_WAIT + 4000);
+  if (!DEMO) {
+    tick();
+    // Hard backstop in case every ping is swallowed: never strand the visitor.
+    setTimeout(go, MAX_WAIT + 4000);
+  }
 </script>
 </body>
 </html>
