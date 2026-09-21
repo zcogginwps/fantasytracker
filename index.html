@@ -10,6 +10,7 @@
 <meta name="apple-mobile-web-app-title" content="Fantasy Tracker">
 <link rel="apple-touch-icon" href="helmet.png">
 <link rel="icon" href="helmet.png">
+<link rel="manifest" href="manifest.json">
 <style>
   :root {
     --bg: #0f1115; --surface: #171a21; --line: #2a2f3a;
@@ -57,6 +58,12 @@
     animation: fill 60s ease-out forwards; }
   @keyframes fill { to { width: 92%; } }
 
+  .enter { display: inline-block; margin-top: 18px; padding: 11px 22px;
+    border-radius: 10px; border: 1.5px solid var(--for); color: var(--for);
+    background: transparent; font-weight: 700; text-decoration: none; font-size: 15px; }
+  .tip { margin: 16px 0 0; color: var(--muted); font-size: 12px; }
+  .tip b { color: var(--text); }
+
   @media (prefers-reduced-motion: reduce) {
     .ring { animation-duration: 2.2s; }
     .helmet, .fill { animation: none; }
@@ -73,6 +80,8 @@
     <p id="status">Waking up your leagues…</p>
     <p class="sub">The app naps when nobody's using it. The first open can take up to a minute — hang tight and you'll be dropped straight in.</p>
     <div class="track" aria-hidden="true"><div class="fill"></div></div>
+    <a id="enter" class="enter" hidden href="https://fantasy-tracker-r5z7.onrender.com">Open Fantasy Tracker →</a>
+    <p id="tip" class="tip" hidden>Tip — tap <b>Share ▸ Add to Home Screen</b> to keep this one tap away.</p>
   </main>
 
 <script>
@@ -86,12 +95,23 @@
   // ?demo just shows this screen without waking or forwarding to the app, so it
   // can be viewed on demand even when the server is already awake.
   var DEMO = new URLSearchParams(location.search).has("demo");
+  // True only when launched from the Home Screen (installed). In a plain browser
+  // tab we must NOT auto-cross to the app's origin: that yanks the visitor
+  // around AND makes "Add to Home Screen" save the app URL instead of this
+  // launcher - which then skips this screen forever. So there we show a button.
+  var STANDALONE = window.navigator.standalone === true ||
+    (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches);
 
-  function go() {
+  function ready() {
     if (done) return;
     done = true;
-    var wait = Math.max(0, MIN_SHOW - (Date.now() - start));
-    setTimeout(function () { window.location.replace(APP); }, wait);
+    if (STANDALONE) {
+      var wait = Math.max(0, MIN_SHOW - (Date.now() - start));
+      setTimeout(function () { window.location.replace(APP); }, wait);
+    } else {
+      statusEl.textContent = "Ready when you are.";
+      document.getElementById("enter").hidden = false;
+    }
   }
 
   async function tick() {
@@ -99,15 +119,15 @@
     try {
       // The first request also wakes the sleeping instance. /healthz sends a
       // permissive CORS header so we can actually read it; a truthy ok means
-      // the server is up and it is safe to hand the visitor over.
+      // the server is up.
       var r = await fetch(HEALTH, { cache: "no-store" });
       if (r.ok) {
         var j = null;
         try { j = await r.json(); } catch (e) {}
-        if (j && j.ok) { go(); return; }
+        if (j && j.ok) { ready(); return; }
       }
     } catch (e) { /* still asleep, offline, or CORS not live yet - keep trying */ }
-    if (Date.now() - start > MAX_WAIT) { go(); return; }
+    if (Date.now() - start > MAX_WAIT) { ready(); return; }
     setTimeout(tick, 1500);
   }
 
@@ -116,9 +136,11 @@
   setTimeout(function () { if (!done) statusEl.textContent = "Almost there…"; }, 45000);
 
   if (!DEMO) {
-    tick();
+    // In a browser tab, invite an install rather than forwarding automatically.
+    if (!STANDALONE) document.getElementById("tip").hidden = false;
+    tick();  // wake the server either way, so it's warm by the time they enter
     // Hard backstop in case every ping is swallowed: never strand the visitor.
-    setTimeout(go, MAX_WAIT + 4000);
+    setTimeout(ready, MAX_WAIT + 4000);
   }
 </script>
 </body>
