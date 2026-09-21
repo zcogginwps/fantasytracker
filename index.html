@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fantasy Tracker</title>
+<meta name="theme-color" content="#0f1115">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Fantasy Tracker">
+<link rel="apple-touch-icon" href="helmet.png">
+<link rel="icon" href="helmet.png">
+<style>
+  :root {
+    --bg: #0f1115; --surface: #171a21; --line: #2a2f3a;
+    --text: #e8ebf0; --muted: #939bab; --for: #34d17c;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg: #f4f6f9; --surface: #fff; --line: #e0e4ea;
+            --text: #12151b; --muted: #5f6877; --for: #0f9d58; }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px calc(24px + env(safe-area-inset-right)) 24px calc(24px + env(safe-area-inset-left));
+    -webkit-font-smoothing: antialiased;
+  }
+  .box { width: 100%; max-width: 340px; text-align: center; }
+
+  /* Helmet inside a spinning accent ring. The ring turns; the helmet holds still. */
+  .badge { position: relative; width: 108px; height: 108px; margin: 0 auto 22px; }
+  .ring {
+    position: absolute; inset: 0; border-radius: 50%;
+    border: 3px solid var(--line);
+    border-top-color: var(--for); border-right-color: var(--for);
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .helmet {
+    position: absolute; inset: 0; margin: auto; width: 64px; height: 64px;
+    animation: bob 2.4s ease-in-out infinite;
+  }
+  @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+
+  h1 { margin: 0 0 6px; font-size: 21px; font-weight: 750; letter-spacing: -.2px; }
+  #status { margin: 0 0 14px; color: var(--text); font-weight: 600; min-height: 1.5em; }
+  .sub { margin: 0; color: var(--muted); font-size: 12.5px; }
+
+  /* A calm progress bar that fills over the expected wake time, purely to show
+     the wait is finite. It is a reassurance, not a real measurement. */
+  .track { height: 4px; border-radius: 999px; background: var(--line);
+    overflow: hidden; margin: 20px auto 0; max-width: 220px; }
+  .fill { height: 100%; width: 0; background: var(--for); border-radius: 999px;
+    animation: fill 60s ease-out forwards; }
+  @keyframes fill { to { width: 92%; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ring { animation-duration: 2.2s; }
+    .helmet, .fill { animation: none; }
+  }
+</style>
+</head>
+<body>
+  <main class="box">
+    <div class="badge">
+      <div class="ring" aria-hidden="true"></div>
+      <img class="helmet" src="helmet.png" alt="">
+    </div>
+    <h1>Fantasy Tracker</h1>
+    <p id="status">Waking up your leagues…</p>
+    <p class="sub">The app naps when nobody's using it. The first open can take up to a minute — hang tight and you'll be dropped straight in.</p>
+    <div class="track" aria-hidden="true"><div class="fill"></div></div>
+  </main>
+
+<script>
+  var APP = "https://fantasy-tracker-r5z7.onrender.com";
+  var HEALTH = APP + "/healthz";
+  var MAX_WAIT = 90000;          // stop waiting and hand off anyway after this
+  var MIN_SHOW = 600;            // don't flash past the screen if already awake
+  var start = Date.now();
+  var done = false;
+  var statusEl = document.getElementById("status");
+
+  function go() {
+    if (done) return;
+    done = true;
+    var wait = Math.max(0, MIN_SHOW - (Date.now() - start));
+    setTimeout(function () { window.location.replace(APP); }, wait);
+  }
+
+  async function tick() {
+    if (done) return;
+    try {
+      // The first request also wakes the sleeping instance. /healthz sends a
+      // permissive CORS header so we can actually read it; a truthy ok means
+      // the server is up and it is safe to hand the visitor over.
+      var r = await fetch(HEALTH, { cache: "no-store" });
+      if (r.ok) {
+        var j = null;
+        try { j = await r.json(); } catch (e) {}
+        if (j && j.ok) { go(); return; }
+      }
+    } catch (e) { /* still asleep, offline, or CORS not live yet - keep trying */ }
+    if (Date.now() - start > MAX_WAIT) { go(); return; }
+    setTimeout(tick, 1500);
+  }
+
+  // Gentle reassurance as the wait stretches on.
+  setTimeout(function () { if (!done) statusEl.textContent = "Still warming up…"; }, 20000);
+  setTimeout(function () { if (!done) statusEl.textContent = "Almost there…"; }, 45000);
+
+  tick();
+  // Hard backstop in case every ping is swallowed: never strand the visitor.
+  setTimeout(go, MAX_WAIT + 4000);
+</script>
+</body>
+</html>
